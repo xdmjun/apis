@@ -4,6 +4,7 @@ const Router = require('koa-router')
 const router = new Router()
 const rp = require('request-promise')
 const cors = require('koa2-cors')
+const puppeteer = require('puppeteer')
 
 app.use(cors())
 
@@ -59,6 +60,11 @@ router.get('/wxnews', async (ctx, next) => {
   await next()
 })
 
+router.get('/siteonline', async (ctx, next) => {
+  ctx.data = await getStatistic()
+  await next()
+})
+
 app.use(router.routes())
 app.use(router.allowedMethods())
 
@@ -66,3 +72,33 @@ let server = app.listen(2333, () => {
   let port = server.address().port
   console.log('start at http://localhost:%s', port)
 })
+
+function getStatistic() {
+  return new Promise((resolve, reject) => {
+    try {
+      puppeteer
+        .launch({
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+          dumpio: false,
+        })
+        .then(async (browser) => {
+          const page = await browser.newPage()
+          await page.goto('https://web.51.la/report/main?comId=19828725', {
+            waitUntil: 'networkidle2',
+          })
+          let onlineNum = await page.$eval('#online-num', (el) => el.innerText)
+          let totalNum = await page.$eval(
+            '.main-expand .col-9 > div:nth-child(2) .border-right p:last-child',
+            (el) => el.innerText
+          )
+
+          let params = { onlineNum: onlineNum, totalNum: totalNum }
+          browser.close()
+          resolve(params)
+        })
+    } catch (err) {
+      reject(err)
+    }
+  })
+}
